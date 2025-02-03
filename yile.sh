@@ -60,7 +60,7 @@ fi
 echo "Copying new files..."
 \cp -f license /etc/pmta/
 \cp -f config /etc/pmta/
-\cp -f mykey.6068805.com.pem "/etc/pmta/mykey.$pmtahostname.pem"
+\cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
 \cp -f pmta /usr/sbin/
 \cp -f pmtad /usr/sbin/
 \cp -f pmtahttpd /usr/sbin/
@@ -71,6 +71,11 @@ echo "Updating configurations..."
 sed -i "s/QQQipQQQ/$pmtaip/g" $(grep -rl "QQQipQQQ" /etc/pmta/)
 sed -i "s/QQQhostnameQQQ/$pmtahostname/g" $(grep -rl "QQQhostnameQQQ" /etc/pmta/)
 sed -i "s/QQQportQQQ/$pmtaport/g" $(grep -rl "QQQportQQQ" /etc/pmta/)
+
+# Set ownership and permissions for pmtahttpd (ADD THIS BLOCK)
+echo "Setting permissions for pmtahttpd..."
+chown pmta:pmta /usr/sbin/pmtahttpd
+chmod 755 /usr/sbin/pmtahttpd
 
 # Restart PMTA service
 echo "Restarting PMTA service..."
