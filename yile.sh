@@ -68,14 +68,14 @@ echo "Copying new files..."
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
-sed -i "s/QQQipQQQ/$pmtaip/g" $(grep -rl "QQQipQQQ" /etc/pmta/)
-sed -i "s/QQQhostnameQQQ/$pmtahostname/g" $(grep -rl "QQQhostnameQQQ" /etc/pmta/)
-sed -i "s/QQQportQQQ/$pmtaport/g" $(grep -rl "QQQportQQQ" /etc/pmta/)
+sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/`
+sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/`
+sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/`
 
 # Set ownership and permissions for pmtahttpd (ADD THIS BLOCK)
-echo "Setting permissions for pmtahttpd..."
-chown pmta:pmta /usr/sbin/pmtahttpd
-chmod 755 /usr/sbin/pmtahttpd
+#echo "Setting permissions for pmtahttpd..."
+#chown pmta:pmta /usr/sbin/pmtahttpd
+#chmod 755 /usr/sbin/pmtahttpd
 
 # Restart PMTA service
 echo "Restarting PMTA service..."
