@@ -22,7 +22,7 @@ fi
 
 # Files to download
 files=(
-    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/refs/heads/main/PowerMTA-4.5r11.rpm"
+    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
     "pmta https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmta"
     "pmtad https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmtad"
     "pmtahttpd https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmtahttpd"
