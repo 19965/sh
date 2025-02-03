@@ -22,12 +22,12 @@ fi
 
 # Files to download
 files=(
-    "PowerMTA-4.5r11.rpm https://github.com/yuweng1013/autoinstall/raw/main/PowerMTA-4.5r11.rpm"
-    "pmta https://github.com/yuweng1013/autoinstall/raw/main/pmta"
-    "pmtad https://github.com/yuweng1013/autoinstall/raw/main/pmtad"
-    "pmtahttpd https://github.com/yuweng1013/autoinstall/raw/main/pmtahttpd"
-    "pmtasnmpd https://github.com/yuweng1013/autoinstall/raw/main/pmtasnmpd"
-    "license https://github.com/yuweng1013/autoinstall/raw/main/license"
+    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/refs/heads/main/PowerMTA-4.5r11.rpm"
+    "pmta https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmta"
+    "pmtad https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmtad"
+    "pmtahttpd https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmtahttpd"
+    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/refs/heads/main/pmtasnmpd"
+    "license https://raw.githubusercontent.com/19965/sh/refs/heads/main/license"
     "config https://raw.githubusercontent.com/19965/sh/refs/heads/main/config"
     "mykey.${pmtahostname}.pem https://github.com/yuweng1013/autoinstall/raw/main/mykey.6068805.com.pem"
 )
