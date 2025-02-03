@@ -73,9 +73,9 @@ sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/`
 sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/`
 
 # Set ownership and permissions for pmtahttpd (ADD THIS BLOCK)
-#echo "Setting permissions for pmtahttpd..."
-#chown pmta:pmta /usr/sbin/pmtahttpd
-#chmod 755 /usr/sbin/pmtahttpd
+echo "Setting permissions for pmtahttpd..."
+chown pmta:pmta /usr/sbin/pmtahttpd
+chmod 755 /usr/sbin/pmtahttpd
 
 # Restart PMTA service
 echo "Restarting PMTA service..."
