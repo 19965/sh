@@ -67,9 +67,15 @@ hide-message-source true
 #</domain>
 
 <domain *>
-    max-smtp-out    20       # max. connections *per domain*
-    bounce-after    4d12h    # 4 days, 12 hours
-    retry-after     10m      # 10 minutes
+	max-smtp-out 1200
+	retry-after 1s
+	log-connections no
+	log-commands no
+	log-transfer-failures no
+	deliver-local-dsn no
+	dkim-sign yes
+	dkim-algorithm rsa-sha256
+	max-msg-per-connection unlimited
 </domain>
 #######################
 domain-macro sez seznam.cz
@@ -103,6 +109,7 @@ queue-to telia.queue
 	log-transfer-failures no
 	deliver-local-dsn no
 	dkim-sign yes
+	dkim-algorithm rsa-sha256
 	max-msg-rate 40/m
 	smtp-pattern-list cables-errors
 	max-msg-per-connection unlimited
