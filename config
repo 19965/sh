@@ -76,6 +76,10 @@ hide-message-source true
 	dkim-sign yes
 	dkim-algorithm rsa-sha256
 	max-msg-per-connection unlimited
+	backoff-max-connect-rate 0
+	backoff-upon-all-sources-disabled true
+	backoff-max-msg-rate 0/d
+
 </domain>
 #######################
 domain-macro sez seznam.cz
@@ -136,9 +140,9 @@ queue-to avmx.queue
     log-connections no                           # Whether to log connections; 'no' means connections are not logged
     log-commands no                              # Whether to log SMTP commands; 'no' means commands are not logged
     bounce-after 4d                           # Time after which undelivered emails will bounce back (4 days and 12 hours)
-    backoff-max-msg-rate 1/h                     # Maximum message rate during backoff period (1 message per hour)
+    backoff-max-msg-rate 0/d                   # Maximum message rate during backoff period (1 message per hour)
     backoff-retry-after 12h                   # Time intervals for retrying during backoff periods (first retry after 6 hours, second retry after 12 hours)
-    backoff-to-normal-after-delivery yes         # Whether to return to normal message rate after successful delivery
+    backoff-to-normal-after-delivery no         # Whether to return to normal message rate after successful delivery
     backoff-to-normal-after 12h                  # Time to return to normal message rate after backoff period (12 hours)
     smtp-pattern-list cables-errors              # List of patterns to match for errors, with specific backoff modes applied
 </domain>
