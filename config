@@ -161,7 +161,7 @@ http-mgmt-port 8080
 
 http-access 127.0.0.1 monitor
 http-access ::1 monitor
-#http-access 10.1.0/24 admin
+http-access 96.44.145.19 monitor
 
 #############################################
 # Whether to run the PowerMTA deamon as root
