@@ -18,8 +18,8 @@ domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.QQQhostnameQQQ.pem
 #
 # Settings per source IP address (for incoming SMTP connections)
 #
-<smtp-user 19965>
-password heyvv
+<smtp-user simon>
+password Mona99dj
 source {pmta-auth}
 </smtp-user>
 <source {pmta-auth}>
@@ -165,7 +165,7 @@ http-mgmt-port 8080
 
 http-access 127.0.0.1 monitor
 http-access ::1 monitor
-http-access 96.44.145.19 monitor
+http-access 96.44.145.19 admin
 
 #############################################
 # Whether to run the PowerMTA deamon as root
