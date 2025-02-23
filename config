@@ -186,6 +186,11 @@ log-file /var/log/pmta/pmta.log   # logrotate is used for rotation
     max-size 50M
     delete-after 8d
 </acct-file>
+
+<acct-file /var/log/pmta/b.csv>
+    records b
+</acct-file>
+
 # default bounce categorization patterns
 <bounce-category-patterns>
     /spam/ spam-related
