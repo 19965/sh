@@ -41,17 +41,17 @@ for file in "${files[@]}"; do
 done
 
 # Install EPEL repository (required for dependencies)
-echo "Enabling EPEL repository..."
-yum install -y epel-release || { echo "Failed to enable EPEL. Exiting."; exit 1; }
+#echo "Enabling EPEL repository..."
+#yum install -y epel-release || { echo "Failed to enable EPEL. Exiting."; exit 1; }
 
 # Install dependencies
-echo "Installing required dependencies..."
-yum install -y perl-libwww-perl perl-Crypt-SSLeay openssl || { 
-    echo "Dependency installation failed. Try these alternatives:";
-    echo "1. Check available packages: dnf search perl-Crypt-SSLeay";
-    echo "2. Install via CPAN: cpan Crypt::SSLeay";
-    exit 1;
-}
+#echo "Installing required dependencies..."
+#yum install -y perl-libwww-perl perl-Crypt-SSLeay openssl || { 
+#    echo "Dependency installation failed. Try these alternatives:";
+#    echo "1. Check available packages: dnf search perl-Crypt-SSLeay";
+#    echo "2. Install via CPAN: cpan Crypt::SSLeay";
+#   exit 1;
+#}
 
 # Create PMTA user if missing
 if ! id "pmta" &>/dev/null; then
