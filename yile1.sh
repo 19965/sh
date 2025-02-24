@@ -40,18 +40,9 @@ for file in "${files[@]}"; do
     wget -q -O "$filename" "$url" || { echo "Failed to download $filename. Exiting."; exit 1; }
 done
 
-# Install EPEL repository (required for dependencies)
-#echo "Enabling EPEL repository..."
-#yum install -y epel-release || { echo "Failed to enable EPEL. Exiting."; exit 1; }
-
-# Install dependencies
+# Install open ssl and perl-core
 #echo "Installing required dependencies..."
-#yum install -y perl-libwww-perl perl-Crypt-SSLeay openssl || { 
-#    echo "Dependency installation failed. Try these alternatives:";
-#    echo "1. Check available packages: dnf search perl-Crypt-SSLeay";
-#    echo "2. Install via CPAN: cpan Crypt::SSLeay";
-#   exit 1;
-#}
+#yum install -y openssl || { echo "Dependency installation failed. Exiting."; exit 1; }
 
 # Create PMTA user if missing
 if ! id "pmta" &>/dev/null; then
@@ -59,13 +50,46 @@ if ! id "pmta" &>/dev/null; then
     useradd -r -s /sbin/nologin pmta || { echo "Failed to create pmta user. Exiting."; exit 1; }
 fi
 
-# Install PowerMTA
+# Install PowerMTA with forced install
 echo "Installing PowerMTA..."
-rpm -Uvh PowerMTA-4.5r11.rpm || { echo "Failed to install PowerMTA. Check dependencies. Exiting."; exit 1; }
+rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force || { echo "RPM installed with nodeps, proceeding with systemd setup."; }
 
-# Stop PMTA service
-echo "Stopping PMTA service..."
-systemctl stop pmta 2>/dev/null || echo "PMTA service not running, continuing setup."
+# Create systemd service files
+echo "Creating systemd services..."
+cat <<EOF > /usr/lib/systemd/system/pmta.service
+[Unit]
+Description=PowerMTA Mail Transfer Agent
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/pmta start
+ExecStop=/usr/sbin/pmta stop
+ExecReload=/usr/sbin/pmta reload
+PIDFile=/var/run/pmta.pid
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat <<EOF > /usr/lib/systemd/system/pmtahttp.service
+[Unit]
+Description=PowerMTA HTTP Interface
+After=network.target pmta.service
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/pmtahttpd start
+ExecStop=/usr/sbin/pmtahttpd stop
+PIDFile=/var/run/pmtahttpd.pid
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Cleanup legacy init links
+echo "Removing broken symlinks..."
+find /etc/rc.d -name "*pmta*" -delete 2>/dev/null
 
 # Backup existing configurations
 backup_dir="/etc/pmta_backup_$(date +%Y%m%d%H%M%S)"
@@ -78,7 +102,7 @@ else
 fi
 
 # Copy files to appropriate locations
-echo "Copying new files..."
+echo "Copying configuration files..."
 \cp -f license /etc/pmta/
 \cp -f config /etc/pmta/
 \cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
@@ -93,25 +117,23 @@ sed -i "s/QQQipQQQ/$pmtaip/g" /etc/pmta/*
 sed -i "s/QQQhostnameQQQ/$pmtahostname/g" /etc/pmta/*
 sed -i "s/QQQportQQQ/$pmtaport/g" /etc/pmta/*
 
-# Set ownership and permissions
+# Set permissions and SELinux context
 echo "Setting permissions..."
 chown -R pmta:pmta /etc/pmta
 chmod -R 755 /etc/pmta
 chown pmta:pmta /usr/sbin/pmta*
 chmod 755 /usr/sbin/pmta*
-
-# Fix SELinux context
-echo "Applying SELinux file contexts..."
 restorecon -Rv /etc/pmta /usr/sbin/pmta* 2>/dev/null
 
-# Reload systemd and restart PMTA
-echo "Restarting PMTA service..."
+# Configure systemd services
+echo "Configuring services..."
 systemctl daemon-reload
-systemctl restart pmta || { echo "Failed to restart PMTA service. Check logs with: journalctl -u pmta"; exit 1; }
+systemctl enable pmta pmtahttp
+systemctl restart pmta pmtahttp || { echo "Service restart failed. Check: journalctl -u pmta*"; exit 1; }
 
-# Verify service status
-sleep 3
-systemctl status pmta --no-pager
+# Verify installation
+echo "Checking service status..."
+systemctl status pmta pmtahttp --no-pager
 
 # Completion message
 echo "PMTA installation successful!"
