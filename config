@@ -151,6 +151,7 @@ queue-to avmx.queue
 ############### CABLES ###################
 <smtp-pattern-list cables-errors>
 reply /Message blocked due to spam content in the message/ mode=backoff
+reply /Spam Detected/ mode=backoff
 </smtp-pattern-list>
 ##########################################
 #
