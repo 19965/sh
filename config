@@ -152,6 +152,12 @@ queue-to avmx.queue
 <smtp-pattern-list cables-errors>
 reply /Message blocked due to spam content in the message/ mode=backoff
 reply /Spam Detected/ mode=backoff
+reply /\[VI-1\]/ mode=backoff
+reply /Service refused due to bad behavior/ mode=backoff
+reply /Client host rejected: IP_IN_CIDR/ mode=backoff
+reply /Missing reverse DNS/ mode=backoff
+reply /Greylisting in action/ mode=backoff,disable-source-ip,reenable-after=15m
+reply /RBL Restriction/ mode=backoff
 </smtp-pattern-list>
 ##########################################
 #
