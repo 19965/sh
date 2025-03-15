@@ -120,6 +120,30 @@ queue-to telia.queue
 </domain>
 ##########################################
 ##########    </END TELIA>  #############
+
+##########################################
+##########    <START PTD>  #############
+##########################################
+<domain ptd.queue>
+	route 150.136.189.171
+	max-smtp-out 5
+	bounce-after 4d12h
+	retry-after 1s
+	log-connections no
+	log-commands no
+	log-transfer-failures no
+	deliver-local-dsn no
+	dkim-sign yes
+	dkim-algorithm rsa-sha256
+	max-msg-rate 30/m
+	smtp-pattern-list cables-errors
+	max-msg-per-connection unlimited
+</domain>
+
+##########################################
+##########    </END PTD>  #############
+
+
 ##########################################
 ############################################
 ##########   <START AVMX>   #############
