@@ -124,8 +124,12 @@ queue-to telia.queue
 ##########################################
 ##########    <START PTD>  #############
 ##########################################
+domain-macro ptd ptd.net,ptdprolog.net
+<domain $ptd>
+queue-to ptd.queue
+</domain>
 <domain ptd.queue>
-	route 150.136.189.171
+	route  150.136.189.171
 	max-smtp-out 5
 	bounce-after 4d12h
 	retry-after 1s
