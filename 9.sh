@@ -1,12 +1,10 @@
 #!/bin/bash
+set -e
 
-# Exit on any error
-set -e 
-
-# Validate user privileges
+# Ensure root
 if [ "$(id -u)" -ne 0 ]; then
-    echo "This script must be run as root. Exiting."
-    exit 1
+  echo "This script must be run as root. Exiting."
+  exit 1
 fi
 
 # Prompt for user inputs
@@ -16,11 +14,11 @@ read -p "Your PMTA port: " pmtaport
 
 # Validate IP address format
 if [[ ! $pmtaip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Invalid IP address format. Exiting."
-    exit 1
+  echo "Invalid IP address format. Exiting."
+  exit 1
 fi
 
-# Files to download
+# Downloadable files (name + URL)
 files=(
     "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
     "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
@@ -32,188 +30,103 @@ files=(
     "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
 )
 
-# Download files
+echo
 for file in "${files[@]}"; do
-    filename=$(echo $file | awk '{print $1}')
-    url=$(echo $file | awk '{print $2}')
-    echo "Downloading $filename..."
-    wget -q -O "$filename" "$url" || { echo "Failed to download $filename. Exiting."; exit 1; }
+  name="${file%% *}"
+  url="${file#* }"
+  echo "Downloading ${name}..."
+  wget -q -O "${name}" "${url}" \
+    || { echo "Failed to download ${name}. Exiting."; exit 1; }
 done
+echo
 
-# Create permanent dummy functions file
-echo "Creating system functions file for compatibility..."
-mkdir -p /etc/rc.d/init.d
-cat > /etc/rc.d/init.d/functions <<'EOF'
-#!/bin/bash
-action() {
-    echo "$@"
-    return 0
-}
-success() {
-    action "$@"
-    return 0
-}
-failure() {
-    action "$@"
-    return 1
-}
-EOF
-chmod +x /etc/rc.d/init.d/functions
+# Install RPM
+echo "Installing PowerMTA package…"
+rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force \
+  || { echo "RPM install failed. Exiting."; exit 1; }
 
-# Install PowerMTA
-echo "Installing PowerMTA..."
-rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force 2> >(grep -v 'failed to create symbolic link' >&2) || {
-    echo "PowerMTA installation completed with known warnings"
-}
+# Stop any existing service
+echo "Stopping legacy PMTA (if running)…"
+service pmta stop 2>/dev/null || true
 
-# Stop PMTA services if running
-echo "Stopping PMTA services..."
-systemctl stop pmta pmtahttp 2>/dev/null || service pmta stop 2>/dev/null || echo "Services not running, continuing setup."
-
-# Backup existing configurations
+# Backup old config
 backup_dir="/etc/pmta_backup_$(date +%Y%m%d%H%M%S)"
-mkdir -p "$backup_dir"
-if [ -d "/etc/pmta" ]; then
-    echo "Backing up existing configuration to $backup_dir..."
-    cp -r /etc/pmta/* "$backup_dir/"
-fi
+[ -d /etc/pmta ] && {
+  echo "Backing up /etc/pmta → ${backup_dir}"
+  mkdir -p "${backup_dir}"
+  cp -a /etc/pmta/* "${backup_dir}/"
+}
 
-# Copy files to appropriate locations
-echo "Copying new files..."
-\cp -f license /etc/pmta/
-\cp -f config /etc/pmta/
-\cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
-\cp -f pmta /usr/sbin/
-\cp -f pmtad /usr/sbin/
-\cp -f pmtahttpd /usr/sbin/
-\cp -f pmtasnmpd /usr/sbin/
+# Copy binaries & config
+echo "Deploying binaries and configs…"
+install -m 755 pmta       /usr/sbin/pmta
+install -m 755 pmtad      /usr/sbin/pmtad
+install -m 755 pmtahttpd  /usr/sbin/pmtahttpd
+install -m 755 pmtasnmpd  /usr/sbin/pmtasnmpd
 
-# Fix pmtahttpd to prevent main service shutdown
-echo "Modifying pmtahttpd to prevent service shutdown..."
-sed -i '/trap.*EXIT/d' /usr/sbin/pmtahttpd
-sed -i '/shutdown_main_service/d' /usr/sbin/pmtahttpd
-sed -i '/stop_pmta_service/d' /usr/sbin/pmtahttpd
+install -m 644 license    /etc/pmta/license
+install -m 644 config     /etc/pmta/config
+install -m 644 mykey.${pmtahostname}.pem /etc/pmta/mykey.${pmtahostname}.pem
 
-# Update configuration with provided inputs
-echo "Updating configurations..."
-sed -i "s/QQQipQQQ/$pmtaip/g" $(grep "QQQipQQQ" -rl /etc/pmta/)
-sed -i "s/QQQhostnameQQQ/$pmtahostname/g" $(grep "QQQhostnameQQQ" -rl /etc/pmta/)
-sed -i "s/QQQportQQQ/$pmtaport/g" $(grep "QQQportQQQ" -rl /etc/pmta/)
+# Templating config values
+echo "Updating configuration placeholders…"
+sed -i "s/QQQipQQQ/${pmtaip}/g"     $(grep -Rl 'QQQipQQQ'     /etc/pmta/)
+sed -i "s/QQQhostnameQQQ/${pmtahostname}/g" $(grep -Rl 'QQQhostnameQQQ' /etc/pmta/)
+sed -i "s/QQQportQQQ/${pmtaport}/g" $(grep -Rl 'QQQportQQQ'     /etc/pmta/)
 
-# Set ownership and permissions
-echo "Setting permissions..."
+# Permissions
+echo "Fixing permissions…"
 chown pmta:pmta /usr/sbin/pmtahttpd
-chmod 755 /usr/sbin/pmtahttpd
+chmod 755      /usr/sbin/pmtahttpd
 
-# Create CORRECT systemd service files
-echo "Creating systemd services..."
-cat > /etc/systemd/system/pmta.service <<'EOF'
+# SysV vs systemd detection
+if [ -d /etc/rc.d/rc2.d ]; then
+  echo "Detected SysV rc.d → creating legacy symlinks…"
+  for lvl in 0 1 2 3 4 5 6; do
+    ln -sf ../init.d/pmta      /etc/rc.d/rc${lvl}.d/S80pmta
+    ln -sf ../init.d/pmtahttpd /etc/rc.d/rc${lvl}.d/S80pmtahttp
+  done
+else
+  echo "No /etc/rc.d/rc?.d dirs → assuming systemd (EL9+)."
+  # Drop a minimal unit file:
+  cat > /etc/systemd/system/pmta.service <<EOF
 [Unit]
-Description=PowerMTA Daemon
+Description=PowerMTA Mail Transfer Agent
 After=network.target
 
 [Service]
-Type=simple
-ExecStart=/usr/sbin/pmtad
-User=pmta
-Group=pmta
+Type=forking
+ExecStart=/usr/sbin/pmta
+ExecStop=/usr/sbin/pmtahttpd stop
+PIDFile=/var/run/pmta/pmta.pid
 Restart=on-failure
-RestartSec=5s
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=pmta
-
-# Important security settings
-NoNewPrivileges=yes
-LimitNOFILE=65536
-ProtectSystem=strict
-PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-cat > /etc/systemd/system/pmtahttp.service <<'EOF'
-[Unit]
-Description=PowerMTA HTTP Service
-After=network.target pmta.service
+  systemctl daemon-reload
+  systemctl enable pmta.service
+fi
 
-[Service]
-Type=simple
-ExecStart=/usr/sbin/pmtahttpd
-User=pmta
-Group=pmta
-Restart=on-failure
-RestartSec=5s
-StandardOutput=syslog
-StandardError=syslog
-SyslogIdentifier=pmtahttp
+# Start/restart service
+echo "Starting PMTA service…"
+if command -v systemctl &>/dev/null; then
+  systemctl restart pmta.service
+else
+  service pmta restart
+fi
 
-# Prevent main service from stopping when HTTP stops
-KillMode=process
+# Final message
+cat <<EOS
 
-[Install]
-WantedBy=multi-user.target
-EOF
+PMTA installation complete!
+----------------------------------------
+Host:     ${pmtahostname}
+Port:     ${pmtaport}
+Mail:     support@${pmtahostname}
+Username: xxxx
+Password: yyyy
+----------------------------------------
 
-# Reload and enable services
-echo "Configuring systemd services..."
-systemctl daemon-reload
-systemctl enable pmta pmtahttp
-
-# Start services
-echo "Starting PMTA services..."
-systemctl start pmta pmtahttp || { 
-    echo "Starting services using alternative method...";
-    # Start PMTA in background
-    /usr/sbin/pmtad > /var/log/pmta-start.log 2>&1 &
-    # Start HTTP service
-    /usr/sbin/pmtahttpd > /var/log/pmtahttp-start.log 2>&1 &
-}
-
-# Wait for services to start
-sleep 3
-
-# Verify services
-echo "Service status:"
-systemctl status pmta pmtahttp --no-pager -l || {
-    echo "Checking process status:"
-    pgrep -alf 'pmtad|pmtahttpd'
-    echo "Network ports:"
-    netstat -tulpn | grep -E 'pmtad|pmtahttpd'
-    echo "Logs:"
-    tail -n 20 /var/log/pmta-start.log /var/log/pmtahttp-start.log 2>/dev/null
-}
-
-# Create logrotate configuration
-echo "Configuring log rotation..."
-cat > /etc/logrotate.d/pmta <<'EOF'
-/var/log/pmta*.log {
-    daily
-    missingok
-    rotate 30
-    compress
-    delaycompress
-    notifempty
-    create 640 pmta pmta
-    sharedscripts
-    postrotate
-        systemctl reload pmta pmtahttp >/dev/null 2>&1 || true
-    endscript
-}
-EOF
-
-# Completion message
-echo "PMTA installation successful!"
-echo "============================================="
-echo "PMTA host: $pmtahostname"
-echo "PMTA port: $pmtaport"
-echo "PMTA mail account: support@$pmtahostname"
-echo "PMTA username: xxxx"
-echo "PMTA password: yyyy"
-echo "============================================="
-echo "Service management commands:"
-echo "  Restart PMTA: systemctl restart pmta"
-echo "  Restart HTTP: systemctl restart pmtahttp"
-echo "  View PMTA logs: journalctl -u pmta -f"
-echo "  View HTTP logs: journalctl -u pmtahttp -f"
+EOS
