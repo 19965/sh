@@ -32,6 +32,7 @@ files=(
     "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
 )
 
+
 # Download files
 for file in "${files[@]}"; do
     filename=$(echo $file | awk '{print $1}')
@@ -40,32 +41,17 @@ for file in "${files[@]}"; do
     wget -q -O "$filename" "$url" || { echo "Failed to download $filename. Exiting."; exit 1; }
 done
 
-# Create dummy functions file for RPM installation
-echo "Creating dummy system functions for RPM install..."
-mkdir -p /etc/rc.d/init.d
-cat > /etc/rc.d/init.d/functions <<'EOF'
-#!/bin/sh
-action() {
-    echo "[Dummy] $@"
-    return 0
-}
-success() { action "$@ true"; }
-failure() { action "$@ false"; }
-EOF
-chmod +x /etc/rc.d/init.d/functions
+# Install PowerMTA
+echo "Installing PowerMTA..."
+rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force || { echo "Failed to install PowerMTA. Exiting."; exit 1; }
 
-# Install PowerMTA (ignore expected errors)
-echo "Installing PowerMTA (ignoring expected init errors)..."
-rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force 2> >(grep -vE 'failed to create symbolic link|/etc/rc.d/init.d/functions|action: command not found' >&2) || {
-    echo "PowerMTA installation completed with known warnings"
-}
-
-# Clean up dummy functions
-rm -f /etc/rc.d/init.d/functions
-
-# Stop PMTA services if running
-echo "Stopping PMTA services..."
-systemctl stop pmta pmtahttp 2>/dev/null || service pmta stop 2>/dev/null || echo "Services not running, continuing setup."
+# Stop PMTA service if running
+echo "Stopping PMTA service..."
+if systemctl is-active pmta &>/dev/null; then
+    systemctl stop pmta
+else
+    service pmta stop 2>/dev/null || echo "PMTA service not running, continuing setup."
+fi
 
 # Backup existing configurations
 backup_dir="/etc/pmta_backup_$(date +%Y%m%d%H%M%S)"
@@ -87,37 +73,34 @@ echo "Copying new files..."
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
-sed -i "s/QQQipQQQ/$pmtaip/g" $(grep "QQQipQQQ" -rl /etc/pmta/)
-sed -i "s/QQQhostnameQQQ/$pmtahostname/g" $(grep "QQQhostnameQQQ" -rl /etc/pmta/)
-sed -i "s/QQQportQQQ/$pmtaport/g" $(grep "QQQportQQQ" -rl /etc/pmta/)
+sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/`
+sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/`
+sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/`
 
 # Set ownership and permissions for pmtahttpd
 echo "Setting permissions for pmtahttpd..."
 chown pmta:pmta /usr/sbin/pmtahttpd
 chmod 755 /usr/sbin/pmtahttpd
 
-# Create proper systemd service files
-echo "Creating systemd services..."
-cat > /etc/systemd/system/pmta.service <<EOF
+# Add systemd service files (critical fix for AlmaLinux 9)
+cat > /etc/systemd/system/pmta.service << EOF
 [Unit]
 Description=PowerMTA Daemon
 After=network.target
 
 [Service]
 Type=forking
-PIDFile=/var/run/pmtad.pid
-ExecStart=/usr/sbin/pmtad --daemon
-ExecStop=/bin/kill -TERM \$MAINPID
+ExecStart=/usr/sbin/pmtad start
+ExecStop=/usr/sbin/pmtad stop
 User=pmta
 Group=pmta
 Restart=on-failure
-RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-cat > /etc/systemd/system/pmtahttp.service <<EOF
+cat > /etc/systemd/system/pmtahttp.service << EOF
 [Unit]
 Description=PowerMTA HTTP Service
 After=network.target pmta.service
@@ -128,32 +111,18 @@ ExecStart=/usr/sbin/pmtahttpd
 User=pmta
 Group=pmta
 Restart=on-failure
-RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Reload and enable services
-echo "Configuring systemd services..."
+# Reload systemd and enable services
 systemctl daemon-reload
 systemctl enable pmta pmtahttp
 
-# Start services
-echo "Starting PMTA services..."
-systemctl start pmta pmtahttp || { 
-    echo "Starting services using alternative method...";
-    /usr/sbin/pmtad --daemon
-    /usr/sbin/pmtahttpd
-}
-
-# Verify services
-echo "Service status:"
-systemctl status pmta pmtahttp --no-pager -l || {
-    echo "Checking process status:"
-    ps aux | grep -E 'pmtad|pmtahttpd'
-    netstat -tulpn | grep -E 'pmtad|pmtahttpd'
-}
+# Restart PMTA services
+echo "Restarting PMTA services..."
+systemctl restart pmta pmtahttp || { echo "Failed to restart PMTA services. Please check logs."; exit 1; }
 
 # Completion message
 echo "PMTA installation successful!"
@@ -164,4 +133,3 @@ echo "PMTA mail account: support@$pmtahostname"
 echo "PMTA username: xxxx"
 echo "PMTA password: yyyy"
 echo "============================================="
-echo "Note: Ignored expected legacy init errors during RPM installation"
