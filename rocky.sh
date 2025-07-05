@@ -32,6 +32,7 @@ files=(
     "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
 )
 
+
 # Download files
 for file in "${files[@]}"; do
     filename=$(echo $file | awk '{print $1}')
@@ -40,85 +41,28 @@ for file in "${files[@]}"; do
     wget -q -O "$filename" "$url" || { echo "Failed to download $filename. Exiting."; exit 1; }
 done
 
-# ================== PRE-INSTALLATION SETUP ==================
-# 1. Install essential packages
-echo "Installing system dependencies..."
-yum install -y gdb initscripts systemd-sysv openssl
+# Install PowerMTA
+echo "Installing PowerMTA..."
+rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force || { echo "Failed to install PowerMTA. Exiting."; exit 1; }
 
-# 2. Create temporary runlevel directories
-echo "Creating temporary init directories..."
-mkdir -p /etc/rc.d/init.d
-for level in {0..6}; do
-    mkdir -p "/etc/rc.d/rc${level}.d"
-done
-
-# 3. Create legacy functions link
-ln -sf /usr/lib/systemd/system/functions /etc/rc.d/init.d/functions
-
-# 4. Create PMTA user
-if ! id "pmta" &>/dev/null; then
-    echo "Creating PMTA service user..."
-    useradd -r -s /sbin/nologin pmta || { echo "User creation failed. Exiting."; exit 1; }
+# Stop PMTA service if running
+echo "Stopping PMTA service..."
+if systemctl is-active pmta &>/dev/null; then
+    systemctl stop pmta
+else
+    service pmta stop 2>/dev/null || echo "PMTA service not running, continuing setup."
 fi
 
-# ================== POWERMTA INSTALLATION ==================
-echo "Installing PowerMTA RPM..."
-rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force
-
-# ================== POST-INSTALLATION FIXES ==================
-# 1. Cleanup temporary directories
-echo "Cleaning up temporary files..."
-find /etc/rc.d -type d -name "rc[0-6].d" -empty -exec rm -rf {} + 2>/dev/null
-
-# 2. Create systemd services
-echo "Configuring systemd integration..."
-cat <<EOF > /usr/lib/systemd/system/pmta.service
-[Unit]
-Description=PowerMTA Mail Transfer Agent
-After=network.target
-
-[Service]
-Type=forking
-ExecStart=/usr/sbin/pmta start
-ExecStop=/usr/sbin/pmta stop
-ExecReload=/usr/sbin/pmta reload
-PIDFile=/var/run/pmta.pid
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat <<EOF > /usr/lib/systemd/system/pmtahttp.service
-[Unit]
-Description=PowerMTA HTTP Interface
-After=network.target pmta.service
-
-[Service]
-Type=forking
-ExecStart=/usr/sbin/pmtahttpd start
-ExecStop=/usr/sbin/pmtahttpd stop
-PIDFile=/var/run/pmtahttpd.pid
-Restart=on-failure
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 3. Backup existing config
+# Backup existing configurations
 backup_dir="/etc/pmta_backup_$(date +%Y%m%d%H%M%S)"
 mkdir -p "$backup_dir"
 if [ -d "/etc/pmta" ]; then
-    echo "Backing up existing configuration..."
+    echo "Backing up existing configuration to $backup_dir..."
     cp -r /etc/pmta/* "$backup_dir/"
-else
-    mkdir -p /etc/pmta
 fi
 
-# 4. Deploy new configuration
-echo "Deploying configuration files..."
+# Copy files to appropriate locations
+echo "Copying new files..."
 \cp -f license /etc/pmta/
 \cp -f config /etc/pmta/
 \cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
@@ -127,37 +71,65 @@ echo "Deploying configuration files..."
 \cp -f pmtahttpd /usr/sbin/
 \cp -f pmtasnmpd /usr/sbin/
 
-# 5. Update configuration
-echo "Customizing configuration..."
-sed -i "s/QQQipQQQ/$pmtaip/g" /etc/pmta/*
-sed -i "s/QQQhostnameQQQ/$pmtahostname/g" /etc/pmta/*
-sed -i "s/QQQportQQQ/$pmtaport/g" /etc/pmta/*
+# Update configuration with provided inputs
+echo "Updating configurations..."
+sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/`
+sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/`
+sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/`
 
-# 6. Set permissions
-echo "Setting file permissions..."
-chown -R pmta:pmta /etc/pmta
-chmod -R 755 /etc/pmta
-chown pmta:pmta /usr/sbin/pmta*
-chmod 755 /usr/sbin/pmta*
-restorecon -Rv /etc/pmta /usr/sbin/pmta* 2>/dev/null
+# Set ownership and permissions for pmtahttpd
+echo "Setting permissions for pmtahttpd..."
+chown pmta:pmta /usr/sbin/pmtahttpd
+chmod 755 /usr/sbin/pmtahttpd
 
-# 7. Final service setup
-echo "Completing service configuration..."
+# Add systemd service files (critical fix for AlmaLinux 9)
+cat > /etc/systemd/system/pmta.service << EOF
+[Unit]
+Description=PowerMTA Daemon
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/sbin/pmtad start
+ExecStop=/usr/sbin/pmtad stop
+User=pmta
+Group=pmta
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+cat > /etc/systemd/system/pmtahttp.service << EOF
+[Unit]
+Description=PowerMTA HTTP Service
+After=network.target pmta.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/pmtahttpd
+User=pmta
+Group=pmta
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# Reload systemd and enable services
 systemctl daemon-reload
 systemctl enable pmta pmtahttp
-systemctl restart pmta pmtahttp
 
-# ================== VERIFICATION ==================
-echo "Performing final checks..."
-echo -e "\nService Status:"
-systemctl status pmta pmtahttp --no-pager
+# Restart PMTA services
+echo "Restarting PMTA services..."
+systemctl restart pmta pmtahttp || { echo "Failed to restart PMTA services. Please check logs."; exit 1; }
 
-echo -e "\nNetwork Ports:"
-ss -tulnp | grep -E '(pmta|pmtahttp)'
-
-echo -e "\nInstallation Complete!"
+# Completion message
+echo "PMTA installation successful!"
 echo "============================================="
-echo "PMTA Web Interface: http://$pmtaip:$pmtaport"
-echo "Username: admin"
-echo "Password: admin1111"
+echo "PMTA host: $pmtahostname"
+echo "PMTA port: $pmtaport"
+echo "PMTA mail account: support@$pmtahostname"
+echo "PMTA username: xxxx"
+echo "PMTA password: yyyy"
 echo "============================================="
