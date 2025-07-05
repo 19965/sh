@@ -22,14 +22,14 @@ fi
 
 # Files to download
 files=(
-    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
-    "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
-    "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
-    "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
-    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
-    "license https://raw.githubusercontent.com/19965/sh/main/license"
-    "config https://raw.githubusercontent.com/19965/sh/main/config"
-    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
+    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/xxxx/sh/main/PowerMTA-4.5r11.rpm"
+    "pmta https://raw.githubusercontent.com/xxxx/sh/main/pmta"
+    "pmtad https://raw.githubusercontent.com/xxxx/sh/main/pmtad"
+    "pmtahttpd https://raw.githubusercontent.com/xxxx/sh/main/pmtahttpd"
+    "pmtasnmpd https://raw.githubusercontent.com/xxxx/sh/main/pmtasnmpd"
+    "license https://raw.githubusercontent.com/xxxx/sh/main/license"
+    "config https://raw.githubusercontent.com/xxxx/sh/main/config"
+    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/xxxx/sh/main/mykey.6068805.com.pem"
 )
 
 # Download files
@@ -105,7 +105,7 @@ echo "Setting permissions..."
 chown pmta:pmta /usr/sbin/pmtahttpd
 chmod 755 /usr/sbin/pmtahttpd
 
-# Create systemd service files
+# Create CORRECT systemd service files
 echo "Creating systemd services..."
 cat > /etc/systemd/system/pmta.service <<'EOF'
 [Unit]
@@ -113,14 +113,21 @@ Description=PowerMTA Daemon
 After=network.target
 
 [Service]
-Type=forking
-PIDFile=/var/run/pmtad.pid
-ExecStart=/usr/sbin/pmtad --daemon
-ExecStop=/bin/kill -TERM $MAINPID
+Type=simple
+ExecStart=/usr/sbin/pmtad
 User=pmta
 Group=pmta
 Restart=on-failure
 RestartSec=5s
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=pmta
+
+# Important security settings
+NoNewPrivileges=yes
+LimitNOFILE=65536
+ProtectSystem=strict
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target
@@ -138,8 +145,11 @@ User=pmta
 Group=pmta
 Restart=on-failure
 RestartSec=5s
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=pmtahttp
 
-# Prevent main PMTA service from stopping when HTTP service stops
+# Prevent main service from stopping when HTTP stops
 KillMode=process
 
 [Install]
@@ -155,9 +165,14 @@ systemctl enable pmta pmtahttp
 echo "Starting PMTA services..."
 systemctl start pmta pmtahttp || { 
     echo "Starting services using alternative method...";
-    /usr/sbin/pmtad --daemon
-    /usr/sbin/pmtahttpd
+    # Start PMTA in background
+    /usr/sbin/pmtad > /var/log/pmta-start.log 2>&1 &
+    # Start HTTP service
+    /usr/sbin/pmtahttpd > /var/log/pmtahttp-start.log 2>&1 &
 }
+
+# Wait for services to start
+sleep 3
 
 # Verify services
 echo "Service status:"
@@ -166,7 +181,27 @@ systemctl status pmta pmtahttp --no-pager -l || {
     pgrep -alf 'pmtad|pmtahttpd'
     echo "Network ports:"
     netstat -tulpn | grep -E 'pmtad|pmtahttpd'
+    echo "Logs:"
+    tail -n 20 /var/log/pmta-start.log /var/log/pmtahttp-start.log 2>/dev/null
 }
+
+# Create logrotate configuration
+echo "Configuring log rotation..."
+cat > /etc/logrotate.d/pmta <<'EOF'
+/var/log/pmta*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 pmta pmta
+    sharedscripts
+    postrotate
+        systemctl reload pmta pmtahttp >/dev/null 2>&1 || true
+    endscript
+}
+EOF
 
 # Completion message
 echo "PMTA installation successful!"
@@ -177,5 +212,8 @@ echo "PMTA mail account: support@$pmtahostname"
 echo "PMTA username: xxxx"
 echo "PMTA password: yyyy"
 echo "============================================="
-echo "To restart HTTP service: systemctl restart pmtahttp"
-echo "To view HTTP logs: journalctl -u pmtahttp -f"
+echo "Service management commands:"
+echo "  Restart PMTA: systemctl restart pmta"
+echo "  Restart HTTP: systemctl restart pmtahttp"
+echo "  View PMTA logs: journalctl -u pmta -f"
+echo "  View HTTP logs: journalctl -u pmtahttp -f"
