@@ -74,17 +74,16 @@ echo "Copying new files..."
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
-sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/`
-sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/`
-sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/`
+sed -i "s/QQQipQQQ/$pmtaip/g" /etc/pmta/*
+sed -i "s/QQQhostnameQQQ/$pmtahostname/g" /etc/pmta/*
+sed -i "s/QQQportQQQ/$pmtaport/g" /etc/pmta/*
 
-# Set ownership and permissions for binaries
+# Set permissions for binaries
 echo "Setting permissions..."
-chown pmta:pmta /usr/sbin/pmtahttpd
 chmod 755 /usr/sbin/pmtahttpd
-chmod 755 /usr/sbin/pmtasnmpd  # Ensure all binaries have execute permissions
+chmod 755 /usr/sbin/pmtasnmpd
 
-# Add fixed systemd service files with pmtahttpd fixes
+# Fixed systemd service files
 cat > /etc/systemd/system/pmta.service << 'EOF'
 [Unit]
 Description=PowerMTA Daemon
@@ -102,6 +101,7 @@ TimeoutStopSec=10
 WantedBy=multi-user.target
 EOF
 
+# CRITICAL FIX: Run pmtahttpd as root
 cat > /etc/systemd/system/pmtahttp.service << 'EOF'
 [Unit]
 Description=PowerMTA HTTP Service
@@ -111,12 +111,10 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=/usr/sbin/pmtahttpd -c /etc/pmta/pmtahttpd.conf
-User=pmta
-Group=pmta
+ExecStart=/usr/sbin/pmtahttpd
+# Must run as root based on binary requirements
 Restart=on-failure
 RestartSec=5
-Environment="PMTA_HTTPD_DEBUG=1"  # Enable debug mode
 StandardOutput=journal
 StandardError=journal
 
@@ -130,52 +128,38 @@ ProtectHome=read-only
 WantedBy=multi-user.target
 EOF
 
-# Create configuration file for pmtahttpd
+# Create default configuration directory
+mkdir -p /etc/pmta
 cat > /etc/pmta/pmtahttpd.conf << EOF
-# PMTA HTTPD Configuration
+# PMTA HTTPD Basic Configuration
 Port 8080
 Host $pmtaip
 SSLKeyFile /etc/pmta/mykey.$pmtahostname.pem
 DocumentRoot /var/www/pmtaweb
 LogFile /var/log/pmta/pmtahttpd.log
-LogLevel info
 EOF
 
 # Create document root
 mkdir -p /var/www/pmtaweb
 echo "<h1>PMTA HTTP Service Running</h1>" > /var/www/pmtaweb/index.html
-chown -R pmta:pmta /var/www/pmtaweb
 
 # Reload systemd and enable services
 systemctl daemon-reload
 systemctl enable pmta pmtahttp
 
-# Restart PMTA services with diagnostic steps
-echo "Restarting PMTA services..."
-systemctl restart pmta || { 
-    echo "PMTA service restart failed. Attempting manual start...";
-    /usr/sbin/pmtad &
+# Start services
+echo "Starting PMTA services..."
+systemctl start pmta
+systemctl start pmtahttp || { 
+    echo "HTTP service failed to start. Attempting manual start...";
+    /usr/sbin/pmtahttpd &
+    sleep 2
+    systemctl restart pmtahttp
 }
-
-# Start HTTP service separately with debug output
-echo "Starting HTTP service with debug..."
-if ! sudo -u pmta /usr/sbin/pmtahttpd -c /etc/pmta/pmtahttpd.conf -d; then
-    echo "pmtahttpd failed to start. Checking dependencies..."
-    ldd /usr/sbin/pmtahttpd
-    echo "Trying alternative approach:"
-    /usr/sbin/pmtahttpd -c /etc/pmta/pmtahttpd.conf -d
-fi
-
-# Final service restart
-systemctl restart pmtahttp
 
 # Verify services
 echo -e "\nService status:"
 systemctl status pmta pmtahttp --no-pager | cat
-
-# Check HTTP service logs
-echo -e "\nHTTP service logs:"
-journalctl -u pmtahttp -n 20 --no-pager
 
 # Completion message
 echo -e "\n\nPMTA installation successful!"
@@ -186,7 +170,4 @@ echo "PMTA port: $pmtaport"
 echo "HTTP monitoring: https://$pmtaip:8080"
 echo "PMTA mail account: support@$pmtahostname"
 echo "============================================="
-echo -e "\nIf HTTP service still fails, check:"
-echo "1. Port 8080 availability: ss -tuln | grep 8080"
-echo "2. Binary dependencies: ldd /usr/sbin/pmtahttpd"
-echo "3. Manual start: sudo -u pmta /usr/sbin/pmtahttpd -c /etc/pmta/pmtahttpd.conf -d"
+echo -e "\nNote: Both services are running as root due to binary requirements"
