@@ -20,14 +20,14 @@ fi
 
 # Files to download
 files=(
-  "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/xxxx/sh/main/PowerMTA-4.5r11.rpm"
-  "pmta           https://raw.githubusercontent.com/xxxx/sh/main/pmta"
-  "pmtad          https://raw.githubusercontent.com/xxxx/sh/main/pmtad"
-  "pmtahttpd      https://raw.githubusercontent.com/xxxx/sh/main/pmtahttpd"
-  "pmtasnmpd      https://raw.githubusercontent.com/xxxx/sh/main/pmtasnmpd"
-  "license        https://raw.githubusercontent.com/xxxx/sh/main/license"
-  "config         https://raw.githubusercontent.com/xxxx/sh/main/config"
-  "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/xxxx/sh/main/mykey.6068805.com.pem"
+    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
+    "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
+    "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
+    "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
+    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
+    "license https://raw.githubusercontent.com/19965/sh/main/license"
+    "config https://raw.githubusercontent.com/19965/sh/main/config"
+    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
 )
 
 echo
