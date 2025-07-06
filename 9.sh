@@ -18,7 +18,7 @@ if [[ ! $pmtaip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
-# Downloadable files (name + URL)
+# List of files to download: name + URL
 files=(
     "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
     "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
@@ -40,93 +40,88 @@ for file in "${files[@]}"; do
 done
 echo
 
-# Install RPM
+# Install the RPM (force + no deps)
 echo "Installing PowerMTA package…"
 rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force \
   || { echo "RPM install failed. Exiting."; exit 1; }
 
-# Stop any existing service
+# Stop any existing pmta service (legacy)
 echo "Stopping legacy PMTA (if running)…"
 service pmta stop 2>/dev/null || true
 
-# Backup old config
+# Backup existing config
 backup_dir="/etc/pmta_backup_$(date +%Y%m%d%H%M%S)"
-[ -d /etc/pmta ] && {
+if [ -d /etc/pmta ]; then
   echo "Backing up /etc/pmta → ${backup_dir}"
   mkdir -p "${backup_dir}"
   cp -a /etc/pmta/* "${backup_dir}/"
-}
+fi
 
-# Copy binaries & config
-echo "Deploying binaries and configs…"
+# Deploy binaries
+echo "Deploying binaries…"
 install -m 755 pmta       /usr/sbin/pmta
 install -m 755 pmtad      /usr/sbin/pmtad
 install -m 755 pmtahttpd  /usr/sbin/pmtahttpd
 install -m 755 pmtasnmpd  /usr/sbin/pmtasnmpd
 
+# Deploy configs
+echo "Deploying configs…"
+install -d -m 755 /etc/pmta
 install -m 644 license    /etc/pmta/license
 install -m 644 config     /etc/pmta/config
 install -m 644 mykey.${pmtahostname}.pem /etc/pmta/mykey.${pmtahostname}.pem
 
-# Templating config values
-echo "Updating configuration placeholders…"
+# Template config placeholders
+echo "Templating configuration values…"
 sed -i "s/QQQipQQQ/${pmtaip}/g"     $(grep -Rl 'QQQipQQQ'     /etc/pmta/)
 sed -i "s/QQQhostnameQQQ/${pmtahostname}/g" $(grep -Rl 'QQQhostnameQQQ' /etc/pmta/)
 sed -i "s/QQQportQQQ/${pmtaport}/g" $(grep -Rl 'QQQportQQQ'     /etc/pmta/)
 
-# Permissions
-echo "Fixing permissions…"
+# Permissions for pmtahttpd
+echo "Fixing permissions on pmtahttpd…"
 chown pmta:pmta /usr/sbin/pmtahttpd
 chmod 755      /usr/sbin/pmtahttpd
 
-# SysV vs systemd detection
-if [ -d /etc/rc.d/rc2.d ]; then
-  echo "Detected SysV rc.d → creating legacy symlinks…"
-  for lvl in 0 1 2 3 4 5 6; do
-    ln -sf ../init.d/pmta      /etc/rc.d/rc${lvl}.d/S80pmta
-    ln -sf ../init.d/pmtahttpd /etc/rc.d/rc${lvl}.d/S80pmtahttp
-  done
-else
-  echo "No /etc/rc.d/rc?.d dirs → assuming systemd (EL9+)."
-  # Drop a minimal unit file:
-  cat > /etc/systemd/system/pmta.service <<EOF
+# Create a systemd unit for PMTA
+echo "Installing systemd unit…"
+cat > /etc/systemd/system/pmta.service <<'EOF'
 [Unit]
 Description=PowerMTA Mail Transfer Agent
 After=network.target
 
 [Service]
 Type=forking
-ExecStart=/usr/sbin/pmta
+RuntimeDirectory=pmta
+RuntimeDirectoryMode=0755
+User=pmta
+Group=pmta
+
+# Launch PowerMTA pointing at your config dir
+ExecStart=/usr/sbin/pmta -c /etc/pmta/config
 ExecStop=/usr/sbin/pmtahttpd stop
-PIDFile=/var/run/pmta/pmta.pid
+
+# Systemd‐managed PID location
+PIDFile=/run/pmta/pmta.pid
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-  systemctl daemon-reload
-  systemctl enable pmta.service
-fi
+# Enable & start under systemd
+echo "Reloading systemd and enabling PMTA…"
+systemctl daemon-reload
+systemctl enable pmta.service
+systemctl restart pmta.service
 
-# Start/restart service
-echo "Starting PMTA service…"
-if command -v systemctl &>/dev/null; then
-  systemctl restart pmta.service
-else
-  service pmta restart
-fi
-
-# Final message
-cat <<EOS
-
-PMTA installation complete!
-----------------------------------------
-Host:     ${pmtahostname}
-Port:     ${pmtaport}
-Mail:     support@${pmtahostname}
-Username: xxxx
-Password: yyyy
-----------------------------------------
-
-EOS
+# Final status
+echo
+echo "============================================="
+echo " PMTA installation complete!"
+echo " Host:     ${pmtahostname}"
+echo " Port:     ${pmtaport}"
+echo " Mail:     support@${pmtahostname}"
+echo " Username: xxxx"
+echo " Password: yyyy"
+echo "============================================="
+echo "Use 'systemctl status pmta' to verify the service."
