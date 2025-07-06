@@ -12,22 +12,22 @@ read -p "Your PMTA IP: " pmtaip
 read -p "Your PMTA hostname: " pmtahostname
 read -p "Your PMTA port: " pmtaport
 
-# Validate IP address format
+# Validate IP address
 if [[ ! $pmtaip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "Invalid IP address format. Exiting."
   exit 1
 fi
 
-# List of files to download: name + URL
+# Files to download
 files=(
-    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
-    "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
-    "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
-    "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
-    "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
-    "license https://raw.githubusercontent.com/19965/sh/main/license"
-    "config https://raw.githubusercontent.com/19965/sh/main/config"
-    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.6068805.com.pem"
+  "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/xxxx/sh/main/PowerMTA-4.5r11.rpm"
+  "pmta           https://raw.githubusercontent.com/xxxx/sh/main/pmta"
+  "pmtad          https://raw.githubusercontent.com/xxxx/sh/main/pmtad"
+  "pmtahttpd      https://raw.githubusercontent.com/xxxx/sh/main/pmtahttpd"
+  "pmtasnmpd      https://raw.githubusercontent.com/xxxx/sh/main/pmtasnmpd"
+  "license        https://raw.githubusercontent.com/xxxx/sh/main/license"
+  "config         https://raw.githubusercontent.com/xxxx/sh/main/config"
+  "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/xxxx/sh/main/mykey.6068805.com.pem"
 )
 
 echo
@@ -40,12 +40,12 @@ for file in "${files[@]}"; do
 done
 echo
 
-# Install the RPM (force + no deps)
+# Install RPM
 echo "Installing PowerMTA package…"
 rpm -Uvh PowerMTA-4.5r11.rpm --nodeps --force \
   || { echo "RPM install failed. Exiting."; exit 1; }
 
-# Stop any existing pmta service (legacy)
+# Stop any legacy service
 echo "Stopping legacy PMTA (if running)…"
 service pmta stop 2>/dev/null || true
 
@@ -71,18 +71,18 @@ install -m 644 license    /etc/pmta/license
 install -m 644 config     /etc/pmta/config
 install -m 644 mykey.${pmtahostname}.pem /etc/pmta/mykey.${pmtahostname}.pem
 
-# Template config placeholders
+# Fill in placeholders
 echo "Templating configuration values…"
-sed -i "s/QQQipQQQ/${pmtaip}/g"     $(grep -Rl 'QQQipQQQ'     /etc/pmta/)
+sed -i "s/QQQipQQQ/${pmtaip}/g"         $(grep -Rl 'QQQipQQQ'     /etc/pmta/)
 sed -i "s/QQQhostnameQQQ/${pmtahostname}/g" $(grep -Rl 'QQQhostnameQQQ' /etc/pmta/)
-sed -i "s/QQQportQQQ/${pmtaport}/g" $(grep -Rl 'QQQportQQQ'     /etc/pmta/)
+sed -i "s/QQQportQQQ/${pmtaport}/g"     $(grep -Rl 'QQQportQQQ'     /etc/pmta/)
 
-# Permissions for pmtahttpd
+# Permissions on pmtahttpd
 echo "Fixing permissions on pmtahttpd…"
 chown pmta:pmta /usr/sbin/pmtahttpd
 chmod 755      /usr/sbin/pmtahttpd
 
-# Create a systemd unit for PMTA
+# Install systemd unit
 echo "Installing systemd unit…"
 cat > /etc/systemd/system/pmta.service <<'EOF'
 [Unit]
@@ -96,11 +96,11 @@ RuntimeDirectoryMode=0755
 User=pmta
 Group=pmta
 
-# Launch PowerMTA pointing at your config dir
-ExecStart=/usr/sbin/pmta -c /etc/pmta/config
+# Invoke PowerMTA with your config file
+ExecStart=/usr/sbin/pmta /etc/pmta/config
 ExecStop=/usr/sbin/pmtahttpd stop
 
-# Systemd‐managed PID location
+# systemd-managed PID directory
 PIDFile=/run/pmta/pmta.pid
 Restart=on-failure
 
@@ -114,7 +114,7 @@ systemctl daemon-reload
 systemctl enable pmta.service
 systemctl restart pmta.service
 
-# Final status
+# Final report
 echo
 echo "============================================="
 echo " PMTA installation complete!"
