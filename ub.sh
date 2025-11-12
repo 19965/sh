@@ -9,11 +9,6 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-# Install required dependencies
-echo "Installing dependencies..."
-apt update
-apt install -y wget alien dpkg-dev debhelper build-essential
-
 # Prompt for user inputs
 read -p "Your PMTA IP: " pmtaip
 read -p "Your PMTA hostname: " pmtahostname
@@ -27,7 +22,7 @@ fi
 
 # Files to download
 files=(
-    "PowerMTA-4.5r11.rpm https://raw.githubusercontent.com/19965/sh/main/PowerMTA-4.5r11.rpm"
+    "powermta_4.0r6-201204021810_amd64.deb https://raw.githubusercontent.com/19965/sh/main/powermta_4.0r6-201204021810_amd64.deb"
     "pmta https://raw.githubusercontent.com/19965/sh/main/pmta"
     "pmtad https://raw.githubusercontent.com/19965/sh/main/pmtad"
     "pmtahttpd https://raw.githubusercontent.com/19965/sh/main/pmtahttpd"
@@ -45,16 +40,25 @@ for file in "${files[@]}"; do
     wget -q -O "$filename" "$url" || { echo "Failed to download $filename. Exiting."; exit 1; }
 done
 
-# Convert RPM to DEB and install
-echo "Converting RPM to DEB package..."
-alien -k PowerMTA-4.5r11.rpm
+# Create pmta user and group if they don't exist
+echo "Creating pmta user and group..."
+if ! id "pmta" &>/dev/null; then
+    # Create pmta group
+    if ! getent group pmta >/dev/null; then
+        groupadd --system pmta
+    fi
+    # Create pmta user
+    useradd --system --no-create-home --home-dir /etc/pmta --shell /bin/false -g pmta pmta
+    echo "Created pmta user and group."
+else
+    echo "pmta user already exists."
+fi
 
-# Install the converted package
+# Install PowerMTA using dpkg
 echo "Installing PowerMTA..."
-dpkg -i powermta_4.5r11-2_all.deb || { 
-    echo "Fixing dependencies..."; 
-    apt install -f -y; 
-    dpkg -i powermta_4.5r11-2_all.deb || { echo "Failed to install PowerMTA. Exiting."; exit 1; }
+dpkg -i powermta_4.0r6-201204021810_amd64.deb || { 
+    echo "Failed to install PowerMTA. Attempting to fix dependencies..."; 
+    apt-get update && apt-get install -f -y || { echo "Failed to fix dependencies. Exiting."; exit 1; }
 }
 
 # Stop PMTA service if running
@@ -66,7 +70,7 @@ backup_dir="/etc/pmta_backup_$(date +%Y%m%d%H%M%S)"
 mkdir -p "$backup_dir"
 if [ -d "/etc/pmta" ]; then
     echo "Backing up existing configuration to $backup_dir..."
-    cp -r /etc/pmta/* "$backup_dir/"
+    cp -r /etc/pmta/* "$backup_dir/" 2>/dev/null || echo "No existing configuration to backup."
 fi
 
 # Copy files to appropriate locations
@@ -85,18 +89,32 @@ sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/ 2>/dev/null || ech
 sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
 sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
 
-# Set ownership and permissions
+# Set ownership and permissions for pmtahttpd and configuration directory
 echo "Setting permissions..."
-chown pmta:pmta /usr/sbin/pmtahttpd 2>/dev/null || chown pmta:pmta /usr/sbin/pmtahttpd
+chown pmta:pmta /usr/sbin/pmtahttpd
+chown -R pmta:pmta /etc/pmta/ 2>/dev/null || echo "Could not change ownership of /etc/pmta"
 chmod 755 /usr/sbin/pmtahttpd
+chmod 600 /etc/pmta/license 2>/dev/null || echo "Could not set license permissions"
+chmod 600 /etc/pmta/mykey.$pmtahostname.pem 2>/dev/null || echo "Could not set key permissions"
 
 # Restart PMTA service
 echo "Restarting PMTA service..."
-systemctl daemon-reload 2>/dev/null
-systemctl restart pmta 2>/dev/null || service pmta restart 2>/dev/null || { echo "Failed to restart PMTA service. Please check logs."; exit 1; }
+systemctl daemon-reload 2>/dev/null || true
+systemctl restart pmta 2>/dev/null || service pmta restart 2>/dev/null || { 
+    echo "Failed to restart PMTA service. Please check logs."; 
+    exit 1; 
+}
 
 # Enable PMTA to start on boot
-systemctl enable pmta 2>/dev/null || update-rc.d pmta enable 2>/dev/null
+systemctl enable pmta 2>/dev/null || true
+
+# Verify pmta user ownership
+echo "Verifying pmta user configuration..."
+if id pmta &>/dev/null; then
+    echo "pmta user created successfully: $(id pmta)"
+else
+    echo "Warning: pmta user may not exist properly"
+fi
 
 # Completion message
 echo "PMTA installation successful!"
