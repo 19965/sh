@@ -115,7 +115,25 @@ if id pmta &>/dev/null; then
 else
     echo "Warning: pmta user may not exist properly"
 fi
+# Restart PMTA services
+echo "Restarting PMTA services..."
+systemctl daemon-reload 2>/dev/null || true
 
+# Restart both PMTA and PMTA HTTP services
+systemctl restart pmta 2>/dev/null || service pmta restart 2>/dev/null || { 
+    echo "Failed to restart PMTA service. Please check logs."; 
+    exit 1; 
+}
+
+# Restart PMTA HTTP service if it exists
+if systemctl list-unit-files | grep -q pmtahttp; then
+    systemctl restart pmtahttp 2>/dev/null || echo "PMTA HTTP service not available or failed to restart"
+else
+    echo "PMTA HTTP service not found, skipping restart"
+fi
+
+# Enable PMTA to start on boot
+systemctl enable pmta 2>/dev/null || true
 # Completion message
 echo "PMTA installation successful!"
 echo "============================================="
