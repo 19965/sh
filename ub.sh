@@ -10,8 +10,15 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # Prompt for user inputs
+read -p "Your PMTA IP: " pmtaip
 read -p "Your PMTA hostname: " pmtahostname
+read -p "Your PMTA port: " pmtaport
 
+# Validate IP address format
+if [[ ! $pmtaip =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Invalid IP address format. Exiting."
+    exit 1
+fi
 
 # Files to download
 files=(
@@ -67,18 +74,20 @@ if [ -d "/etc/pmta" ]; then
 fi
 
 # Copy files to appropriate locations
-echo "Moving new files..."
-\mv -f license /etc/pmta/
-\mv -f config /etc/pmta/
-\mv -f "mykey.$pmtahostname.pem" "/etc/pmta/mykey.$pmtahostname.pem"
-\mv -f pmta /usr/sbin/
-\mv -f pmtad /usr/sbin/
-\mv -f pmtahttpd /usr/sbin/
-\mv -f pmtasnmpd /usr/sbin/
+echo "Copying new files..."
+\cp -f license /etc/pmta/
+\cp -f config /etc/pmta/
+\cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
+\cp -f pmta /usr/sbin/
+\cp -f pmtad /usr/sbin/
+\cp -f pmtahttpd /usr/sbin/
+\cp -f pmtasnmpd /usr/sbin/
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
+sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
 sed -i "s/QQQhostnameQQQ/$pmtahostname/g" `grep "QQQhostnameQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
+sed -i "s/QQQportQQQ/$pmtaport/g" `grep "QQQportQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
 
 # Set ownership and permissions for pmtahttpd and configuration directory
 echo "Setting permissions..."
@@ -129,5 +138,8 @@ systemctl enable pmta 2>/dev/null || true
 echo "PMTA installation successful!"
 echo "============================================="
 echo "PMTA host: $pmtahostname"
+echo "PMTA port: $pmtaport"
 echo "PMTA mail account: support@$pmtahostname"
+echo "PMTA username: admin"
+echo "PMTA password: admin1111"
 echo "============================================="
