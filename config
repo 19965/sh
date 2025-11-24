@@ -11,15 +11,15 @@ host-name QQQhostnameQQQ
 #
 # IP address(es) and port(s) on which to listen for incoming SMTP connections
 #
-smtp-listener 0.0.0.0:6000     # listens on all local IPs
+smtp-listener QQQipQQQ:QQQportQQQ     # listens on all local IPs
 
 domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.QQQhostnameQQQ.pem
 
 #
 # Settings per source IP address (for incoming SMTP connections)
 #
-<smtp-user mlilbu>
-password 6iu3TY9iZUZPDF
+<smtp-user simon>
+password Mona99dj
 source {pmta-auth}
 </smtp-user>
 <source {pmta-auth}>
@@ -196,7 +196,7 @@ reply /RBL Restriction/ mode=backoff
 # Port used for HTTP management interface
 #############################################
 ############################################
-http-mgmt-port 5000
+http-mgmt-port 8080
 
 http-access 127.0.0.1 monitor
 http-access ::1 monitor
