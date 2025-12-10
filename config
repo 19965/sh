@@ -29,12 +29,14 @@ require-auth true
 remove-received-headers true
 add-received-header false
 hide-message-source true
+process-x-virtual-mta yes
 </source>
 
 <source 127.0.0.1>
     smtp-service yes
     always-allow-relaying yes
     require-auth false
+    process-x-virtual-mta yes
 </source>
 
 
