@@ -13,7 +13,7 @@ host-name QQQhostnameQQQ
 #
 smtp-listener QQQipQQQ:QQQportQQQ     # listens on all local IPs
 
-domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.QQQhostnameQQQ.pem
+domain-key mykey, QQQhostnameQQQ, /etc/pmta/mykey.test.com.pem
 
 #
 # Settings per source IP address (for incoming SMTP connections)
@@ -37,6 +37,7 @@ process-x-virtual-mta yes
     always-allow-relaying yes
     require-auth false
     process-x-virtual-mta yes
+
 </source>
 
 
@@ -47,6 +48,11 @@ process-x-virtual-mta yes
     log-commands    no       # WARNING: verbose!
     log-data        no       # WARNING: even more verbose!
 </source>
+
+
+
+
+#include /etc/pmta/vmta/209_50_227_203.conf
 
 #
 # SMTP users (authenticated via SMTP AUTH)
