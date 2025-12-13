@@ -83,6 +83,17 @@ echo "Copying new files..."
 \cp -f pmtahttpd /usr/sbin/
 \cp -f pmtasnmpd /usr/sbin/
 
+###
+filename_ip="${pmtaip//./_}"
+dir_path="/etc/pmta/vmta"
+file_path="${dir_path}/${filename_ip}.conf"
+
+# 4. Create the directory (if it doesn't exist already)
+mkdir -p "$dir_path"
+
+# 5. Create the file and put the original IP address inside it
+echo "$pmtaip" > "$file_path"
+
 # Update configuration with provided inputs
 echo "Updating configurations..."
 sed -i "s/QQQipQQQ/$pmtaip/g" `grep "QQQipQQQ" -rl /etc/pmta/ 2>/dev/null || echo ""`
