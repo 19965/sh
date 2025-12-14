@@ -29,7 +29,7 @@ files=(
     "pmtasnmpd https://raw.githubusercontent.com/19965/sh/main/pmtasnmpd"
     "license https://raw.githubusercontent.com/19965/sh/main/license"
     "config https://raw.githubusercontent.com/19965/sh/main/config"
-    "mykey.${pmtahostname}.pem https://raw.githubusercontent.com/19965/sh/main/mykey.test.com.pem"
+    "mykey.test.com.pem https://raw.githubusercontent.com/19965/sh/main/mykey.test.com.pem"
 )
 
 # Download files
