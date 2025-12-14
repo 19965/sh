@@ -77,7 +77,7 @@ fi
 echo "Copying new files..."
 \cp -f license /etc/pmta/
 \cp -f config /etc/pmta/
-\cp -f mykey.$pmtahostname.pem "/etc/pmta/mykey.$pmtahostname.pem"
+\cp -f mykey.test.com.pem "/etc/pmta/mykey.test.com.pem"
 \cp -f pmta /usr/sbin/
 \cp -f pmtad /usr/sbin/
 \cp -f pmtahttpd /usr/sbin/
