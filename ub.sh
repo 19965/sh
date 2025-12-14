@@ -106,7 +106,7 @@ chown pmta:pmta /usr/sbin/pmtahttpd
 chown -R pmta:pmta /etc/pmta/ 2>/dev/null || echo "Could not change ownership of /etc/pmta"
 chmod 755 /usr/sbin/pmtahttpd
 chmod 600 /etc/pmta/license 2>/dev/null || echo "Could not set license permissions"
-chmod 600 /etc/pmta/mykey.$pmtahostname.pem 2>/dev/null || echo "Could not set key permissions"
+chmod 600 /etc/pmta/mykey.test.com.pem 2>/dev/null || echo "Could not set key permissions"
 
 # Restart PMTA service
 echo "Restarting PMTA service..."
