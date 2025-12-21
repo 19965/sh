@@ -91,7 +91,7 @@ file_path="${dir_path}/${filename_ip}.conf"
 mkdir -p "$dir_path"
 
 # 5. Create the file and put the original IP address inside it
-echo "$pmtaip" > "$file_path"
+> "$file_path"
 
 # Update configuration with provided inputs
 echo "Updating configurations..."
